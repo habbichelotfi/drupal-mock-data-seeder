@@ -1,0 +1,23 @@
+enabled: false
+profiles:
+  default:
+    bundle: article
+    count: 10
+    depth: 2
+    paragraphs_per_node:
+      min: 1
+      max: 3
+    paragraph_types:
+      - text_block
+      - cta
+    taxonomy:
+      vocabulary: tags
+      terms_min: 1
+      terms_max: 3
+      create_if_missing: true
+    media:
+      min: 1
+      max: 2
+      create_if_missing: true
+      bundle: remote_video
+

@@ -1,0 +1,9 @@
+name: Drupal Mock Data Seeder
+type: module
+description: Generates realistic nested test data for development environments.
+package: Development
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+configure: drupal_mock_data_seeder.settings
+

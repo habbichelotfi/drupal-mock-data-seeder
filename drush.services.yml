@@ -1,0 +1,8 @@
+services:
+  drupal_mock_data_seeder.commands:
+    class: Drupal\drupal_mock_data_seeder\Commands\MockSeedCommands
+    arguments:
+      - '@drupal_mock_data_seeder.seeder_manager'
+    tags:
+      - { name: drush.command }
+

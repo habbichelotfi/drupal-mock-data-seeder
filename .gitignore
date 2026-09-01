@@ -1,0 +1,19 @@
+# Dependencies
+/vendor/
+
+# PHP / Composer caches
+/.phpunit.result.cache
+/.phpunit.cache/
+
+# IDE files
+/.idea/
+/.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+*.tmp
+

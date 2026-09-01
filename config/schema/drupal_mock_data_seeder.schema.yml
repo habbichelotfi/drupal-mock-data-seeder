@@ -1,0 +1,56 @@
+drupal_mock_data_seeder.settings:
+  type: config_object
+  label: 'Drupal Mock Data Seeder settings'
+  mapping:
+    enabled:
+      type: boolean
+      label: 'Enable seeder in this environment'
+    profiles:
+      type: sequence
+      label: 'Generation profiles'
+      sequence:
+        type: mapping
+        mapping:
+          bundle:
+            type: string
+            label: 'Node bundle'
+          count:
+            type: integer
+            label: 'Node count'
+          depth:
+            type: integer
+            label: 'Max paragraph nesting depth'
+          paragraphs_per_node:
+            type: mapping
+            mapping:
+              min:
+                type: integer
+              max:
+                type: integer
+          paragraph_types:
+            type: sequence
+            sequence:
+              type: string
+          taxonomy:
+            type: mapping
+            mapping:
+              vocabulary:
+                type: string
+              terms_min:
+                type: integer
+              terms_max:
+                type: integer
+              create_if_missing:
+                type: boolean
+          media:
+            type: mapping
+            mapping:
+              min:
+                type: integer
+              max:
+                type: integer
+              create_if_missing:
+                type: boolean
+              bundle:
+                type: string
+

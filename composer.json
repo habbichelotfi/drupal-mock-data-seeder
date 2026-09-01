@@ -1,0 +1,30 @@
+{
+  "name": "lhabbich/drupal-mock-data-seeder",
+  "description": "Drupal development module to generate realistic nested content trees for testing.",
+  "type": "drupal-module",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "drupal/core": "^10.3 || ^11",
+    "fakerphp/faker": "^1.24"
+  },
+  "autoload": {
+    "psr-4": {
+      "Drupal\\drupal_mock_data_seeder\\": "src/"
+    }
+  },
+  "extra": {
+    "drupal": {
+      "package": "Development"
+    }
+  },
+  "scripts": {
+    "test:smoke": "bash tests/bin/smoke.sh"
+  },
+  "config": {
+    "allow-plugins": {
+      "symfony/runtime": true,
+      "drupal/core-composer-scaffold": true
+    }
+  }
+}

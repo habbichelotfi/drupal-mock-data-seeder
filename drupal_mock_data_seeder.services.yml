@@ -1,0 +1,19 @@
+services:
+  drupal_mock_data_seeder.field_value_generator:
+    class: Drupal\drupal_mock_data_seeder\Service\FieldValueGenerator
+
+  drupal_mock_data_seeder.entity_tree_builder:
+    class: Drupal\drupal_mock_data_seeder\Service\EntityTreeBuilder
+    arguments:
+      - '@entity_type.manager'
+      - '@drupal_mock_data_seeder.field_value_generator'
+
+  drupal_mock_data_seeder.seeder_manager:
+    class: Drupal\drupal_mock_data_seeder\Service\SeederManager
+    arguments:
+      - '@entity_type.manager'
+      - '@state'
+      - '@logger.factory'
+      - '@drupal_mock_data_seeder.entity_tree_builder'
+      - '@config.factory'
+
