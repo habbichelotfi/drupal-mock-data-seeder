@@ -39,11 +39,18 @@ final class SeederManager {
     $depth = max(1, (int) ($overrides['depth'] ?? $profile['depth'] ?? 2));
     $locale = (string) ($overrides['locale'] ?? 'fr_FR');
     $dryRun = !empty($overrides['dry_run']);
+    $seed = $this->resolveSeed($overrides['seed'] ?? NULL);
+    $startedAtMicrotime = microtime(TRUE);
 
     $this->assertCountWithinLimit($count, $force);
     $this->assertBundleExists($bundle);
 
     $faker = Factory::create($locale);
+    if ($seed !== NULL) {
+      // Seed both Faker and PHP RNG so generated trees can be replayed.
+      $faker->seed($seed);
+      mt_srand($seed);
+    }
     $runId = date('Ymd_His') . '_' . substr(hash('sha256', uniqid((string) mt_rand(), TRUE)), 0, 8);
     $stats = [
       'node' => 0,
@@ -62,6 +69,7 @@ final class SeederManager {
         'media' => [],
       ],
       'started_at' => date(DATE_ATOM),
+      'seed' => $seed,
       'dry_run' => $dryRun,
     ];
 
@@ -76,7 +84,9 @@ final class SeederManager {
     }
 
     $runStore['finished_at'] = date(DATE_ATOM);
+    $durationMs = (int) round((microtime(TRUE) - $startedAtMicrotime) * 1000);
     $runStore['stats'] = $stats;
+    $runStore['duration_ms'] = $durationMs;
 
     if (!$dryRun) {
       $this->state->set('drupal_mock_data_seeder.runs.' . $runId, $runStore);
@@ -99,8 +109,73 @@ final class SeederManager {
 
     return [
       'run_id' => $runId,
+      'profile' => $profileName,
+      'bundle' => $bundle,
+      'count' => $count,
+      'depth' => $depth,
+      'locale' => $locale,
+      'seed' => $seed,
       'dry_run' => $dryRun,
+      'duration_ms' => $durationMs,
       'stats' => $stats,
+    ];
+  }
+
+  public function doctor(string $profileName = 'default', ?string $bundleOverride = NULL): array {
+    $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
+    $checks = [];
+
+    $enabled = (bool) $config->get('enabled');
+    $checks[] = [
+      'check' => 'enabled',
+      'ok' => $enabled,
+      'message' => $enabled
+        ? 'Seeder is enabled.'
+        : 'Seeder is disabled. Set drupal_mock_data_seeder.settings:enabled to true.',
+    ];
+
+    $profile = (array) ($config->get('profiles.' . $profileName) ?? []);
+    $profileExists = $profile !== [];
+    $checks[] = [
+      'check' => 'profile',
+      'ok' => $profileExists,
+      'message' => $profileExists
+        ? sprintf('Profile "%s" exists.', $profileName)
+        : sprintf('Unknown profile "%s".', $profileName),
+    ];
+
+    $resolvedBundle = (string) ($bundleOverride ?? ($profile['bundle'] ?? 'article'));
+    $bundleCheck = $this->bundleCheck($resolvedBundle);
+    $checks[] = [
+      'check' => 'bundle',
+      'ok' => $bundleCheck['ok'],
+      'message' => $bundleCheck['message'],
+    ];
+
+    $envCheck = $this->environmentCheck();
+    $checks[] = [
+      'check' => 'environment',
+      'ok' => $envCheck['ok'],
+      'message' => $envCheck['message'],
+    ];
+
+    $tempDir = sys_get_temp_dir();
+    $tempWritable = is_string($tempDir) && $tempDir !== '' && is_writable($tempDir);
+    $checks[] = [
+      'check' => 'temp_dir_writable',
+      'ok' => $tempWritable,
+      'message' => $tempWritable
+        ? sprintf('Temporary directory is writable: %s', $tempDir)
+        : sprintf('Temporary directory is not writable: %s', (string) $tempDir),
+    ];
+
+    $ok = !in_array(FALSE, array_column($checks, 'ok'), TRUE);
+
+    return [
+      'ok' => $ok,
+      'profile' => $profileName,
+      'bundle' => $resolvedBundle,
+      'checks' => $checks,
     ];
   }
 
@@ -196,6 +271,58 @@ final class SeederManager {
         throw new \RuntimeException(sprintf('Seeder blocked in environment "%s" (from %s). Use --force=1 to override.', $value, $name));
       }
       return;
+    }
+  }
+
+  private function resolveSeed(mixed $seed): ?int {
+    if ($seed === NULL || $seed === '') {
+      return NULL;
+    }
+
+    if (!is_numeric((string) $seed)) {
+      throw new \InvalidArgumentException('Seed must be an integer value.');
+    }
+
+    $resolved = (int) $seed;
+    if ($resolved < 0) {
+      throw new \InvalidArgumentException('Seed must be a non-negative integer.');
+    }
+
+    return $resolved;
+  }
+
+  private function bundleCheck(string $bundle): array {
+    $storage = $this->entityTypeManager->getStorage('node_type');
+    $nodeType = $storage->load($bundle);
+    if ($nodeType !== NULL) {
+      return [
+        'ok' => TRUE,
+        'message' => sprintf('Bundle "%s" exists.', $bundle),
+      ];
+    }
+
+    $available = array_keys($storage->loadMultiple());
+    sort($available);
+    $availableText = $available === [] ? '(none)' : implode(', ', $available);
+    return [
+      'ok' => FALSE,
+      'message' => sprintf('Unknown node bundle "%s". Available bundles: %s.', $bundle, $availableText),
+    ];
+  }
+
+  private function environmentCheck(): array {
+    try {
+      $this->assertEnvironmentIsAllowed(FALSE);
+      return [
+        'ok' => TRUE,
+        'message' => 'Environment is allowed by safeguards.',
+      ];
+    }
+    catch (\RuntimeException $exception) {
+      return [
+        'ok' => FALSE,
+        'message' => $exception->getMessage(),
+      ];
     }
   }
 

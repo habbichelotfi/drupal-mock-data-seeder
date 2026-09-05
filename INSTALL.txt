@@ -1,19 +1,3 @@
-Drupal Mock Data Seeder - installation
-=====================================
 
-1) Install PHP dependencies from the Drupal root that contains this module:
-   composer install
-
-2) Enable the module:
-   drush en drupal_mock_data_seeder -y
-
-3) Enable runtime safeguards explicitly:
-   drush cset drupal_mock_data_seeder.settings enabled 1 -y
-
-4) Rebuild Drupal cache:
-   drush cr
-
-5) Dry run a seed operation:
-   drush mock:seed --profile=default --dry-run=1
-
-For command options and safeguards, see README.md.
+Read core/INSTALL.txt for detailed installation instructions for your Drupal
+website.

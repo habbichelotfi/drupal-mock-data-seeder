@@ -79,5 +79,39 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->seed('default', ['dry_run' => TRUE, 'bundle' => 'bundle_does_not_exist']);
   }
 
+  public function testDoctorReportsDisabledSeederByDefault(): void {
+    /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
+    $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
+    $result = $manager->doctor('default');
+
+    self::assertFalse($result['ok']);
+    self::assertSame('enabled', $result['checks'][0]['check']);
+    self::assertFalse($result['checks'][0]['ok']);
+  }
+
+  public function testDoctorUnknownProfileFailsProfileCheck(): void {
+    /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
+    $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
+    $result = $manager->doctor('missing_profile');
+
+    $profileChecks = array_values(array_filter(
+      $result['checks'],
+      static fn(array $check): bool => $check['check'] === 'profile',
+    ));
+
+    self::assertCount(1, $profileChecks);
+    self::assertFalse($profileChecks[0]['ok']);
+  }
+
+  public function testInvalidSeedThrowsException(): void {
+    $this->config('drupal_mock_data_seeder.settings')->set('enabled', TRUE)->save();
+
+    /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
+    $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
+
+    $this->expectException(\InvalidArgumentException::class);
+    $manager->seed('default', ['dry_run' => TRUE, 'seed' => 'invalid-seed']);
+  }
+
 }
 
