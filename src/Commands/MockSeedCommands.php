@@ -7,6 +7,9 @@ namespace Drupal\drupal_mock_data_seeder\Commands;
 use Drupal\drupal_mock_data_seeder\Service\SeederManager;
 use Drush\Commands\DrushCommands;
 
+/**
+ * Drush commands for seeding, rollback, and diagnostics.
+ */
 final class MockSeedCommands extends DrushCommands {
 
   public function __construct(
@@ -30,17 +33,19 @@ final class MockSeedCommands extends DrushCommands {
    * @option force Use 1 to override safety guards (count/env).
    * @usage drush mock:seed --profile=default --count=20 --depth=3
    */
-  public function seed(array $options = [
-    'profile' => 'default',
-    'bundle' => NULL,
-    'count' => NULL,
-    'depth' => NULL,
-    'locale' => 'fr_FR',
-    'seed' => NULL,
-    'dry-run' => '0',
-    'json' => '0',
-    'force' => '0',
-  ]): void {
+  public function seed(
+    array $options = [
+      'profile' => 'default',
+      'bundle' => NULL,
+      'count' => NULL,
+      'depth' => NULL,
+      'locale' => 'fr_FR',
+      'seed' => NULL,
+      'dry-run' => '0',
+      'json' => '0',
+      'force' => '0',
+    ],
+  ): void {
     $result = $this->seederManager->seed((string) $options['profile'], [
       'bundle' => $options['bundle'],
       'count' => $options['count'],
@@ -74,11 +79,13 @@ final class MockSeedCommands extends DrushCommands {
    * @option json Use 1 to output diagnostics as JSON.
    * @usage drush mock:doctor --profile=default
    */
-  public function doctor(array $options = [
-    'profile' => 'default',
-    'bundle' => NULL,
-    'json' => '0',
-  ]): void {
+  public function doctor(
+    array $options = [
+      'profile' => 'default',
+      'bundle' => NULL,
+      'json' => '0',
+    ],
+  ): void {
     $result = $this->seederManager->doctor(
       (string) $options['profile'],
       $options['bundle'] ? (string) $options['bundle'] : NULL,
@@ -115,10 +122,12 @@ final class MockSeedCommands extends DrushCommands {
    * @option force Use 1 to reset last run when run-id is required.
    * @usage drush mock:reset --run-id=20260901_102030_abcd1234
    */
-  public function reset(array $options = [
-    'run-id' => NULL,
-    'force' => '0',
-  ]): void {
+  public function reset(
+    array $options = [
+      'run-id' => NULL,
+      'force' => '0',
+    ],
+  ): void {
     $result = $this->seederManager->reset(
       $options['run-id'] ? (string) $options['run-id'] : NULL,
       ((string) $options['force']) === '1',
@@ -134,4 +143,3 @@ final class MockSeedCommands extends DrushCommands {
   }
 
 }
-

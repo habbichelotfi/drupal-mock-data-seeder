@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\drupal_mock_data_seeder\Service;
 
+use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\node\NodeInterface;
 use Faker\Generator;
 
+/**
+ * Builds content trees and related entity references for one seed run.
+ */
 final class EntityTreeBuilder {
 
   public function __construct(
@@ -54,6 +58,9 @@ final class EntityTreeBuilder {
     return $created;
   }
 
+  /**
+   * Attaches taxonomy references on reference fields targeting taxonomy terms.
+   */
   private function attachTaxonomyReferences(NodeInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
     if (!$this->entityTypeManager->hasDefinition('taxonomy_term')) {
       return;
@@ -84,6 +91,9 @@ final class EntityTreeBuilder {
     }
   }
 
+  /**
+   * Attaches media references on reference fields targeting media entities.
+   */
   private function attachMediaReferences(NodeInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
     if (!$this->entityTypeManager->hasDefinition('media')) {
       return;
@@ -113,6 +123,9 @@ final class EntityTreeBuilder {
     }
   }
 
+  /**
+   * Loads or creates taxonomy terms to satisfy minimum reference count.
+   */
   private function ensureTaxonomyTerms(string $vocabulary, int $minimumCount, bool $createIfMissing, Generator $faker, array &$created, bool $dryRun): array {
     $termStorage = $this->entityTypeManager->getStorage('taxonomy_term');
     $existing = $termStorage->loadByProperties(['vid' => $vocabulary]);
@@ -133,6 +146,9 @@ final class EntityTreeBuilder {
     return $termIds;
   }
 
+  /**
+   * Loads or creates media entities to satisfy minimum reference count.
+   */
   private function ensureMediaIds(int $minimumCount, bool $createIfMissing, string $preferredBundle, Generator $faker, array &$created, bool $dryRun): array {
     $mediaStorage = $this->entityTypeManager->getStorage('media');
     $conditions = $preferredBundle !== '' ? ['bundle' => $preferredBundle] : [];
@@ -153,6 +169,9 @@ final class EntityTreeBuilder {
     return $mediaIds;
   }
 
+  /**
+   * Creates one media entity compatible with a usable source field.
+   */
   private function createRemoteVideoMedia(string $preferredBundle, Generator $faker): ?ContentEntityInterface {
     if (!$this->entityTypeManager->hasDefinition('media_type')) {
       return NULL;
@@ -218,7 +237,7 @@ final class EntityTreeBuilder {
   }
 
   /**
-   * Returns field definitions for entity reference fields targeting one entity type.
+   * Returns field definitions for entity reference fields of one target type.
    *
    * @return array<string, \Drupal\Core\Field\FieldDefinitionInterface>
    *   Indexed by field machine name.
@@ -238,6 +257,9 @@ final class EntityTreeBuilder {
     return $matches;
   }
 
+  /**
+   * Resolves a taxonomy vocabulary from field handler settings.
+   */
   private function resolveVocabulary(FieldDefinitionInterface $definition, string $fallback): string {
     $settings = $definition->getSetting('handler_settings');
     if (is_array($settings) && !empty($settings['target_bundles']) && is_array($settings['target_bundles'])) {
@@ -250,6 +272,9 @@ final class EntityTreeBuilder {
     return $fallback;
   }
 
+  /**
+   * Builds and attaches top-level paragraphs on the node.
+   */
   private function attachParagraphs(NodeInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): void {
     if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
       return;
@@ -276,6 +301,9 @@ final class EntityTreeBuilder {
     }
   }
 
+  /**
+   * Recursively creates one paragraph and optional nested child content.
+   */
   private function createParagraphRecursive(array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): ?object {
     if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
       return NULL;
@@ -284,7 +312,7 @@ final class EntityTreeBuilder {
     $types = $profile['paragraph_types'] ?? ['text_block'];
     $type = $types[array_rand($types)];
 
-    $paragraph = \Drupal\paragraphs\Entity\Paragraph::create(['type' => $type]);
+    $paragraph = Paragraph::create(['type' => $type]);
 
     if ($paragraph->hasField('field_title')) {
       $paragraph->set('field_title', $this->fieldValueGenerator->shortText($faker));
@@ -312,6 +340,9 @@ final class EntityTreeBuilder {
     return $paragraph;
   }
 
+  /**
+   * Finds the first paragraph reference revisions field on an entity.
+   */
   private function findParagraphField(object $entity): ?string {
     if (!method_exists($entity, 'getFieldDefinitions')) {
       return NULL;
@@ -331,4 +362,3 @@ final class EntityTreeBuilder {
   }
 
 }
-

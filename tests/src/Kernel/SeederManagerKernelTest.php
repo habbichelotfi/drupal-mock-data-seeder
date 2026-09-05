@@ -27,6 +27,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     'drupal_mock_data_seeder',
   ];
 
+  /**
+   * Verifies seeding is blocked when module setting is disabled.
+   */
   public function testSeederIsBlockedWhenDisabled(): void {
     /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
     $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
@@ -36,6 +39,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->seed('default', ['dry_run' => TRUE]);
   }
 
+  /**
+   * Verifies unknown profile names are rejected.
+   */
   public function testUnknownProfileThrowsException(): void {
     $this->config('drupal_mock_data_seeder.settings')->set('enabled', TRUE)->save();
 
@@ -45,6 +51,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->seed('missing_profile', ['dry_run' => TRUE]);
   }
 
+  /**
+   * Verifies reset requires a run ID when safeguard is enabled.
+   */
   public function testResetRequiresRunIdByDefault(): void {
     /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
     $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
@@ -53,6 +62,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->reset(NULL, FALSE);
   }
 
+  /**
+   * Verifies safeguard max_count is enforced.
+   */
   public function testCountLimitIsEnforced(): void {
     $this->config('drupal_mock_data_seeder.settings')
       ->set('enabled', TRUE)
@@ -66,6 +78,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->seed('default', ['dry_run' => TRUE, 'count' => 3]);
   }
 
+  /**
+   * Verifies unknown node bundles are rejected.
+   */
   public function testUnknownBundleThrowsException(): void {
     $this->config('drupal_mock_data_seeder.settings')
       ->set('enabled', TRUE)
@@ -79,6 +94,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     $manager->seed('default', ['dry_run' => TRUE, 'bundle' => 'bundle_does_not_exist']);
   }
 
+  /**
+   * Verifies doctor reports disabled state by default.
+   */
   public function testDoctorReportsDisabledSeederByDefault(): void {
     /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
     $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
@@ -89,6 +107,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     self::assertFalse($result['checks'][0]['ok']);
   }
 
+  /**
+   * Verifies doctor flags unknown profiles.
+   */
   public function testDoctorUnknownProfileFailsProfileCheck(): void {
     /** @var \Drupal\drupal_mock_data_seeder\Service\SeederManager $manager */
     $manager = $this->container->get('drupal_mock_data_seeder.seeder_manager');
@@ -103,6 +124,9 @@ final class SeederManagerKernelTest extends KernelTestBase {
     self::assertFalse($profileChecks[0]['ok']);
   }
 
+  /**
+   * Verifies invalid seed values are rejected.
+   */
   public function testInvalidSeedThrowsException(): void {
     $this->config('drupal_mock_data_seeder.settings')->set('enabled', TRUE)->save();
 
@@ -114,4 +138,3 @@ final class SeederManagerKernelTest extends KernelTestBase {
   }
 
 }
-

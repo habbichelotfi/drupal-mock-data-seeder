@@ -10,6 +10,9 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\State\StateInterface;
 use Faker\Factory;
 
+/**
+ * Coordinates seeding, rollback, and environment safeguards.
+ */
 final class SeederManager {
 
   public function __construct(
@@ -20,6 +23,9 @@ final class SeederManager {
     private readonly ConfigFactoryInterface $configFactory,
   ) {}
 
+  /**
+   * Runs one seed operation using profile config and runtime overrides.
+   */
   public function seed(string $profileName, array $overrides = []): array {
     $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
     if (!$config->get('enabled')) {
@@ -121,6 +127,9 @@ final class SeederManager {
     ];
   }
 
+  /**
+   * Runs non-destructive prerequisite checks for a target profile.
+   */
   public function doctor(string $profileName = 'default', ?string $bundleOverride = NULL): array {
     $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
     $checks = [];
@@ -179,6 +188,9 @@ final class SeederManager {
     ];
   }
 
+  /**
+   * Deletes entities from a previous run and clears run state.
+   */
   public function reset(?string $runId = NULL, bool $force = FALSE): array {
     $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
     $requireRunId = (bool) $config->get('safeguards.require_run_id_for_reset');
@@ -224,6 +236,9 @@ final class SeederManager {
     ];
   }
 
+  /**
+   * Ensures the target node bundle exists.
+   */
   private function assertBundleExists(string $bundle): void {
     $storage = $this->entityTypeManager->getStorage('node_type');
     $nodeType = $storage->load($bundle);
@@ -237,6 +252,9 @@ final class SeederManager {
     throw new \InvalidArgumentException(sprintf('Unknown node bundle "%s". Available bundles: %s.', $bundle, $availableText));
   }
 
+  /**
+   * Enforces the configured maximum count unless force is enabled.
+   */
   private function assertCountWithinLimit(int $count, bool $force): void {
     $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
     $maxCount = max(1, (int) ($config->get('safeguards.max_count') ?? 100));
@@ -247,6 +265,9 @@ final class SeederManager {
     throw new \InvalidArgumentException(sprintf('Requested count %d exceeds safety limit %d. Use --force=1 to override.', $count, $maxCount));
   }
 
+  /**
+   * Blocks seeding in configured environments unless forced.
+   */
   private function assertEnvironmentIsAllowed(bool $force): void {
     $config = $this->configFactory->get('drupal_mock_data_seeder.settings');
     $blockedEnvs = (array) ($config->get('safeguards.blocked_envs') ?? ['prod', 'production']);
@@ -274,6 +295,9 @@ final class SeederManager {
     }
   }
 
+  /**
+   * Validates and normalizes an optional RNG seed value.
+   */
   private function resolveSeed(mixed $seed): ?int {
     if ($seed === NULL || $seed === '') {
       return NULL;
@@ -291,6 +315,9 @@ final class SeederManager {
     return $resolved;
   }
 
+  /**
+   * Builds a non-throwing bundle validation result for diagnostics.
+   */
   private function bundleCheck(string $bundle): array {
     $storage = $this->entityTypeManager->getStorage('node_type');
     $nodeType = $storage->load($bundle);
@@ -310,6 +337,9 @@ final class SeederManager {
     ];
   }
 
+  /**
+   * Builds a non-throwing environment validation result for diagnostics.
+   */
   private function environmentCheck(): array {
     try {
       $this->assertEnvironmentIsAllowed(FALSE);
@@ -327,4 +357,3 @@ final class SeederManager {
   }
 
 }
-
