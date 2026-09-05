@@ -25,6 +25,7 @@ final class MockSeedCommands extends DrushCommands {
    * @option depth Max paragraph nesting depth.
    * @option locale Faker locale (example: fr_FR).
    * @option dry-run Use 1 to simulate without saving entities.
+   * @option force Use 1 to override safety guards (count/env).
    * @usage drush mock:seed --profile=default --count=20 --depth=3
    */
   public function seed(array $options = [
@@ -34,6 +35,7 @@ final class MockSeedCommands extends DrushCommands {
     'depth' => NULL,
     'locale' => 'fr_FR',
     'dry-run' => '0',
+    'force' => '0',
   ]): void {
     $result = $this->seederManager->seed((string) $options['profile'], [
       'bundle' => $options['bundle'],
@@ -41,6 +43,7 @@ final class MockSeedCommands extends DrushCommands {
       'depth' => $options['depth'],
       'locale' => $options['locale'],
       'dry_run' => ((string) $options['dry-run']) === '1',
+      'force' => ((string) $options['force']) === '1',
     ]);
 
     $this->io()->success(sprintf('Run %s completed (dry-run: %s).', $result['run_id'], $result['dry_run'] ? 'yes' : 'no'));
@@ -57,12 +60,17 @@ final class MockSeedCommands extends DrushCommands {
    *
    * @command mock:reset
    * @option run-id Seed run ID returned by mock:seed.
+   * @option force Use 1 to reset last run when run-id is required.
    * @usage drush mock:reset --run-id=20260901_102030_abcd1234
    */
   public function reset(array $options = [
     'run-id' => NULL,
+    'force' => '0',
   ]): void {
-    $result = $this->seederManager->reset($options['run-id'] ? (string) $options['run-id'] : NULL);
+    $result = $this->seederManager->reset(
+      $options['run-id'] ? (string) $options['run-id'] : NULL,
+      ((string) $options['force']) === '1',
+    );
 
     $this->io()->success(sprintf('Run %s rollback completed.', $result['run_id']));
     $this->io()->table(['Entity type', 'Deleted'], [

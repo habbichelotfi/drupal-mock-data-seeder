@@ -5,6 +5,26 @@ drupal_mock_data_seeder.settings:
     enabled:
       type: boolean
       label: 'Enable seeder in this environment'
+    safeguards:
+      type: mapping
+      label: 'Safety guard settings'
+      mapping:
+        max_count:
+          type: integer
+          label: 'Maximum node count per run'
+        blocked_envs:
+          type: sequence
+          label: 'Environment values that block execution'
+          sequence:
+            type: string
+        env_var_names:
+          type: sequence
+          label: 'Environment variable names used to detect current env'
+          sequence:
+            type: string
+        require_run_id_for_reset:
+          type: boolean
+          label: 'Require run ID to reset data'
     profiles:
       type: sequence
       label: 'Generation profiles'

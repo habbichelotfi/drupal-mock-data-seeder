@@ -1,4 +1,14 @@
 enabled: false
+safeguards:
+  max_count: 100
+  blocked_envs:
+    - prod
+    - production
+  env_var_names:
+    - DRUPAL_ENV
+    - APP_ENV
+    - ENVIRONMENT
+  require_run_id_for_reset: true
 profiles:
   default:
     bundle: article
