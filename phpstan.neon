@@ -1,0 +1,13 @@
+parameters:
+  level: 6
+  paths:
+    - src
+    - tests/src
+  excludePaths:
+    - */vendor/*
+
+  # Drupal magic and dynamic APIs can produce false positives at strict levels.
+  checkMissingIterableValueType: false
+
+includes: []
+

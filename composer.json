@@ -3,14 +3,37 @@
   "description": "Drupal development module to generate realistic nested content trees for testing.",
   "type": "drupal-module",
   "license": "MIT",
+  "homepage": "https://github.com/lhabbich/drupal-mock-data-seeder",
+  "keywords": [
+    "drupal",
+    "drupal-module",
+    "faker",
+    "testing",
+    "seed"
+  ],
+  "authors": [
+    {
+      "name": "Lotfi Habbiche"
+    }
+  ],
   "require": {
     "php": ">=8.1",
     "drupal/core": "^10.3 || ^11",
     "fakerphp/faker": "^1.24"
   },
+  "require-dev": {
+    "drupal/coder": "^8.3",
+    "phpstan/phpstan": "^1.12",
+    "phpunit/phpunit": "^10.5"
+  },
   "autoload": {
     "psr-4": {
       "Drupal\\drupal_mock_data_seeder\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Drupal\\Tests\\drupal_mock_data_seeder\\": "tests/src/"
     }
   },
   "extra": {
@@ -19,7 +42,15 @@
     }
   },
   "scripts": {
-    "test:smoke": "bash tests/bin/smoke.sh"
+    "lint": "phpcs --standard=phpcs.xml",
+    "analyze": "phpstan analyse --configuration=phpstan.neon",
+    "test": "phpunit --configuration=phpunit.xml.dist",
+    "test:smoke": "bash tests/bin/smoke.sh",
+    "qa": [
+      "@test:smoke",
+      "@lint",
+      "@analyze"
+    ]
   },
   "config": {
     "allow-plugins": {

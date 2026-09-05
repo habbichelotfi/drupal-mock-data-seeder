@@ -58,3 +58,32 @@ drush mock:reset --force=1
 ```bash
 bash tests/bin/smoke.sh
 ```
+
+## Development quality checks
+
+Install dev dependencies first:
+
+```bash
+composer install
+```
+
+Run all quality checks:
+
+```bash
+composer qa
+```
+
+Or run each command individually:
+
+```bash
+composer lint
+composer analyze
+composer test
+```
+
+## Contributing
+
+- Read `CONTRIBUTING.md` before opening a pull request.
+- Add tests for behavior changes.
+- Document user-facing changes in `CHANGELOG.md`.
+

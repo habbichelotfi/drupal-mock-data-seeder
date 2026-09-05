@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="drupal_mock_data_seeder">
+  <description>Code style checks for Drupal Mock Data Seeder.</description>
+
+  <arg name="extensions" value="php,module,inc,install,test,profile,theme"/>
+  <arg name="parallel" value="4"/>
+
+  <file>src</file>
+  <file>tests/src</file>
+
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+</ruleset>
+

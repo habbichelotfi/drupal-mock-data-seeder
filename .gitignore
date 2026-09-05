@@ -4,6 +4,11 @@
 # PHP / Composer caches
 /.phpunit.result.cache
 /.phpunit.cache/
+/.phpstan.cache/
+
+# QA reports
+/coverage/
+/build/
 
 # IDE files
 /.idea/

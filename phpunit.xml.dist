@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+  bootstrap="vendor/autoload.php"
+  colors="true"
+  cacheDirectory=".phpunit.cache"
+  executionOrder="depends,defects"
+  beStrictAboutOutputDuringTests="true"
+>
+  <testsuites>
+    <testsuite name="Drupal Mock Data Seeder">
+      <directory suffix="Test.php">tests/src</directory>
+    </testsuite>
+  </testsuites>
+</phpunit>
+
