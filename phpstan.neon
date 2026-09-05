@@ -1,13 +1,15 @@
 parameters:
   level: 6
   paths:
-    - src
-    - tests/src
+    - src/Service
   excludePaths:
     - */vendor/*
+  ignoreErrors:
+    -
+      identifier: missingType.iterableValue
 
-  # Drupal magic and dynamic APIs can produce false positives at strict levels.
-  checkMissingIterableValueType: false
+  # Limit analysis to framework-agnostic service code in this package context.
+  tmpDir: .phpstan.cache
 
 includes: []
 

@@ -8,7 +8,6 @@ use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\node\NodeInterface;
 use Faker\Generator;
 
 /**
@@ -38,6 +37,9 @@ final class EntityTreeBuilder {
       'title' => $this->fieldValueGenerator->nodeTitle($faker),
       'status' => 1,
     ]);
+    if (!$node instanceof ContentEntityInterface) {
+      throw new \RuntimeException('Unable to create a fieldable node entity.');
+    }
 
     if ($node->hasField('body')) {
       $node->set('body', [
@@ -61,7 +63,7 @@ final class EntityTreeBuilder {
   /**
    * Attaches taxonomy references on reference fields targeting taxonomy terms.
    */
-  private function attachTaxonomyReferences(NodeInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachTaxonomyReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
     if (!$this->entityTypeManager->hasDefinition('taxonomy_term')) {
       return;
     }
@@ -94,7 +96,7 @@ final class EntityTreeBuilder {
   /**
    * Attaches media references on reference fields targeting media entities.
    */
-  private function attachMediaReferences(NodeInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachMediaReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
     if (!$this->entityTypeManager->hasDefinition('media')) {
       return;
     }
@@ -209,6 +211,9 @@ final class EntityTreeBuilder {
         'bundle' => $bundle,
         'name' => $faker->sentence(4),
       ]);
+      if (!$media instanceof ContentEntityInterface) {
+        continue;
+      }
       if (!$media->hasField($sourceField)) {
         continue;
       }
@@ -275,7 +280,7 @@ final class EntityTreeBuilder {
   /**
    * Builds and attaches top-level paragraphs on the node.
    */
-  private function attachParagraphs(NodeInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachParagraphs(ContentEntityInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): void {
     if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
       return;
     }
