@@ -7,6 +7,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Paragraph generation across all writable reference fields, with installed-type discovery, field inclusion/exclusion settings, profile filtering, cardinality, and required nesting within the depth limit.
+- Deduplicated required-field and Paragraph configuration warnings in Drush output and JSON run reports, including dry runs.
+- Paragraph workflow tests covering multiple fields, type restrictions, cardinality, required nesting, depth limits, and simulation without writes.
 - `mock:setup` assistant to select a content type, enable a profile, and explicitly create a missing minimal type.
 - Generation of supported empty custom fields on nodes and Paragraphs using field settings.
 - Incremental run journal and failed-run reset instructions for recovery after partial generation.

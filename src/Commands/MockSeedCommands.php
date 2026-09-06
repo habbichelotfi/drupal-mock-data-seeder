@@ -86,6 +86,9 @@ final class MockSeedCommands extends DrushCommands {
       return;
     }
 
+    foreach ($result['warnings'] as $warning) {
+      $this->io()->warning($warning);
+    }
     $this->io()->success(sprintf('Run %s completed (dry-run: %s).', $result['run_id'], $result['dry_run'] ? 'yes' : 'no'));
     $this->io()->table(['Entity type', 'Count'], [
       ['node', (string) $result['stats']['node']],

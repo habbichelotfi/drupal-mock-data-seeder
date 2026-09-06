@@ -11,8 +11,10 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\drupal_mock_data_seeder\Service\EntityTreeBuilder;
 use Drupal\drupal_mock_data_seeder\Service\FieldValueGenerator;
@@ -49,7 +51,9 @@ final class SeederWorkflowTest extends TestCase {
     $state->method('delete')->willReturnCallback(static function ($key) use (&$stateData): void {
       unset($stateData[$key]);
     });
-    return new SeederManager($types, $state, $this->createMock(LoggerChannelFactoryInterface::class), new EntityTreeBuilder($types, new FieldValueGenerator()), $factory);
+    $logger = $this->createMock(LoggerChannelFactoryInterface::class);
+    $logger->method('get')->willReturn($this->createMock(LoggerChannelInterface::class));
+    return new SeederManager($types, $state, $logger, new EntityTreeBuilder($types, new FieldValueGenerator()), $factory);
   }
 
   /**
@@ -106,6 +110,40 @@ final class SeederWorkflowTest extends TestCase {
     catch (\InvalidArgumentException) {
       self::assertArrayNotHasKey('enabled', $settings);
     }
+  }
+
+  /**
+   * Dry runs return deduplicated required-field warnings without writing state.
+   */
+  public function testDryRunWarningsWithoutWrites(): void {
+    $fieldStorage = $this->createMock(FieldStorageDefinitionInterface::class);
+    $fieldStorage->method('isBaseField')->willReturn(FALSE);
+    $field = $this->createMock(FieldDefinitionInterface::class);
+    $field->method('getFieldStorageDefinition')->willReturn($fieldStorage);
+    $field->method('getType')->willReturn('image');
+    $field->method('isRequired')->willReturn(TRUE);
+    $empty = $this->createMock(FieldItemListInterface::class);
+    $empty->method('isEmpty')->willReturn(TRUE);
+    $node = $this->createMock(ContentEntityInterface::class);
+    $node->method('getFieldDefinitions')->willReturn(['field_image' => $field]);
+    $node->method('get')->willReturn($empty);
+    $node->method('getEntityTypeId')->willReturn('node');
+    $node->method('bundle')->willReturn('page');
+    $node->expects(self::never())->method('save');
+    $nodes = $this->createMock(EntityStorageInterface::class);
+    $nodes->method('create')->willReturn($node);
+    $bundles = $this->createMock(EntityStorageInterface::class);
+    $bundles->method('load')->willReturn($this->createMock(EntityInterface::class));
+    $types = $this->createMock(EntityTypeManagerInterface::class);
+    $types->method('getStorage')->willReturnMap([['node', $nodes], ['node_type', $bundles]]);
+    $state = [];
+    $settings = ['enabled' => TRUE, 'profiles.default' => ['bundle' => 'page'], 'safeguards.blocked_envs' => []];
+    $manager = $this->manager($types, $state, $settings);
+    $result = $manager->seed('default', ['count' => 3, 'dry_run' => TRUE]);
+    self::assertCount(1, $result['warnings']);
+    self::assertStringContainsString('node.page.field_image', $result['warnings'][0]);
+    self::assertSame([], $state);
+    self::assertSame(0, $result['stats']['node']);
   }
 
   /**

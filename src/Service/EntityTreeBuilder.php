@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\drupal_mock_data_seeder\Service;
 
-use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
@@ -23,7 +22,7 @@ final class EntityTreeBuilder {
   /**
    * Builds one node tree and returns entity IDs grouped by entity type.
    */
-  public function buildNodeTree(string $bundle, array $profile, int $depth, Generator $faker, bool $dryRun = FALSE, ?callable $onCreated = NULL): array {
+  public function buildNodeTree(string $bundle, array $profile, int $depth, Generator $faker, bool $dryRun = FALSE, ?callable $onCreated = NULL, ?callable $onWarning = NULL): array {
     $created = [
       'node' => [],
       'paragraph' => [],
@@ -52,7 +51,8 @@ final class EntityTreeBuilder {
 
     $this->attachTaxonomyReferences($node, $profile, $faker, $created, $dryRun, $onCreated);
     $this->attachMediaReferences($node, $profile, $faker, $created, $dryRun, $onCreated);
-    $this->attachParagraphs($node, $profile, $depth, $faker, $created, $dryRun, $onCreated);
+    $this->attachParagraphs($node, $profile, $depth, $faker, $created, $dryRun, $onCreated, $onWarning);
+    $this->reportRequiredFields($node, $onWarning);
 
     if (!$dryRun) {
       $node->save();
@@ -289,97 +289,112 @@ final class EntityTreeBuilder {
   }
 
   /**
-   * Builds and attaches top-level paragraphs on the node.
+   * Fills every writable Paragraph reference field within its own constraints.
    */
-  private function attachParagraphs(ContentEntityInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): void {
-    if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
+  private function attachParagraphs(ContentEntityInterface $entity, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated, ?callable $onWarning, bool $nested = FALSE): void {
+    if (!$this->entityTypeManager->hasDefinition('paragraph')) {
       return;
-    }
-
-    $fieldName = $this->findParagraphField($node);
-    if ($fieldName === NULL) {
-      return;
-    }
-
-    $range = $profile['paragraphs_per_node'] ?? ['min' => 1, 'max' => 3];
-    $paragraphCount = mt_rand((int) ($range['min'] ?? 1), (int) ($range['max'] ?? 3));
-
-    $paragraphs = [];
-    for ($i = 0; $i < $paragraphCount; $i++) {
-      $paragraph = $this->createParagraphRecursive($profile, $depth, $faker, $created, $dryRun, $onCreated);
-      if ($paragraph !== NULL) {
-        $paragraphs[] = ['entity' => $paragraph];
-      }
-    }
-
-    if ($paragraphs !== []) {
-      $node->set($fieldName, $paragraphs);
-    }
-  }
-
-  /**
-   * Recursively creates one paragraph and optional nested child content.
-   */
-  private function createParagraphRecursive(array $profile, int $depth, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): ?object {
-    if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
-      return NULL;
-    }
-
-    $types = $profile['paragraph_types'] ?? ['text_block'];
-    $type = $types[array_rand($types)];
-
-    $paragraph = Paragraph::create(['type' => $type]);
-
-    if ($paragraph->hasField('field_title')) {
-      $paragraph->set('field_title', $this->fieldValueGenerator->shortText($faker));
-    }
-    if ($paragraph->hasField('field_text')) {
-      $paragraph->set('field_text', [
-        'value' => $this->fieldValueGenerator->longText($faker),
-        'format' => 'basic_html',
-      ]);
-    }
-
-    $this->fieldValueGenerator->populateFields($paragraph, $faker);
-
-    $nestedField = $this->findParagraphField($paragraph);
-    if ($nestedField !== NULL && $depth > 1 && mt_rand(0, 100) < 35) {
-      $child = $this->createParagraphRecursive($profile, $depth - 1, $faker, $created, $dryRun, $onCreated);
-      if ($child !== NULL) {
-        $paragraph->set($nestedField, [['entity' => $child]]);
-      }
-    }
-
-    if (!$dryRun) {
-      $paragraph->save();
-      $created['paragraph'][] = (int) $paragraph->id();
-      if ($onCreated !== NULL) {
-        $onCreated('paragraph', (int) $paragraph->id());
-      }
-    }
-
-    return $paragraph;
-  }
-
-  /**
-   * Finds the first paragraph reference revisions field on an entity.
-   */
-  private function findParagraphField(object $entity): ?string {
-    if (!method_exists($entity, 'getFieldDefinitions')) {
-      return NULL;
     }
 
     foreach ($entity->getFieldDefinitions() as $fieldName => $definition) {
-      if ($definition->getType() !== 'entity_reference_revisions') {
+      if ($definition->getType() !== 'entity_reference_revisions' || $definition->getSetting('target_type') !== 'paragraph' || $definition->isComputed() || $definition->isReadOnly()) {
         continue;
       }
-      $settings = $definition->getSettings();
-      if (($settings['target_type'] ?? '') === 'paragraph') {
-        return $fieldName;
+      if (!$entity->get($fieldName)->isEmpty()) {
+        continue;
+      }
+      if ($depth < 1) {
+        continue;
+      }
+      // Optional nested fields retain the original 35% branching probability.
+      if ($nested && !$definition->isRequired() && mt_rand(0, 99) >= 35) {
+        continue;
+      }
+      $types = $this->paragraphTypes($definition, $profile);
+      if ($types === []) {
+        if ($onWarning !== NULL) {
+          $onWarning(sprintf('%s.%s.%s: no existing Paragraph type matches the field and profile restrictions.', $entity->getEntityTypeId(), $entity->bundle(), $fieldName));
+        }
+        continue;
+      }
+      $range = $nested ? ['min' => 1, 'max' => 1] : ($profile['paragraphs_per_node'] ?? ['min' => 1, 'max' => 3]);
+      $min = max($definition->isRequired() ? 1 : 0, (int) ($range['min'] ?? 1));
+      $max = max($min, (int) ($range['max'] ?? 3));
+      $cardinality = $definition->getFieldStorageDefinition()->getCardinality();
+      if ($cardinality > 0) {
+        $min = min($min, $cardinality);
+        $max = min($max, $cardinality);
+      }
+      $count = mt_rand($min, $max);
+      $items = [];
+      for ($i = 0; $i < $count; $i++) {
+        $type = $faker->randomElement($types);
+        $paragraph = $this->entityTypeManager->getStorage('paragraph')->create(['type' => $type]);
+        if (!$paragraph instanceof ContentEntityInterface) {
+          throw new \RuntimeException('Unable to create a fieldable Paragraph entity.');
+        }
+        if ($paragraph->hasField('field_title')) {
+          $paragraph->set('field_title', $this->fieldValueGenerator->shortText($faker));
+        }
+        if ($paragraph->hasField('field_text')) {
+          $paragraph->set('field_text', [
+            'value' => $this->fieldValueGenerator->longText($faker),
+            'format' => 'basic_html',
+          ]);
+        }
+        $this->fieldValueGenerator->populateFields($paragraph, $faker);
+        $this->attachParagraphs($paragraph, $profile, $depth - 1, $faker, $created, $dryRun, $onCreated, $onWarning, TRUE);
+        $this->reportRequiredFields($paragraph, $onWarning);
+        if (!$dryRun) {
+          $paragraph->save();
+          $created['paragraph'][] = (int) $paragraph->id();
+          if ($onCreated !== NULL) {
+            $onCreated('paragraph', (int) $paragraph->id());
+          }
+        }
+        $items[] = ['entity' => $paragraph];
+      }
+      if ($items !== []) {
+        $entity->set($fieldName, $items);
       }
     }
+  }
 
-    return NULL;
+  /**
+   * Intersects installed types, field restrictions and the profile list.
+   */
+  private function paragraphTypes(FieldDefinitionInterface $definition, array $profile): array {
+    $types = array_keys($this->entityTypeManager->getStorage('paragraphs_type')->loadMultiple());
+    $settings = (array) $definition->getSetting('handler_settings');
+    $targets = $settings['target_bundles'] ?? NULL;
+    if (is_array($targets)) {
+      $types = !empty($settings['negate'])
+        ? array_diff($types, $targets)
+        : array_intersect($types, $targets);
+    }
+    $profileTypes = (array) ($profile['paragraph_types'] ?? []);
+    if ($profileTypes !== []) {
+      $types = array_intersect($types, $profileTypes);
+    }
+    sort($types);
+    return array_values($types);
+  }
+
+  /**
+   * Reports empty required configurable fields, without full validation.
+   */
+  private function reportRequiredFields(ContentEntityInterface $entity, ?callable $onWarning): void {
+    if ($onWarning === NULL) {
+      return;
+    }
+    foreach ($entity->getFieldDefinitions() as $name => $definition) {
+      if ($definition->getFieldStorageDefinition()->isBaseField() || $definition->isComputed() || $definition->isReadOnly() || !$definition->isRequired()) {
+        continue;
+      }
+      if ($entity->get($name)->isEmpty()) {
+        $onWarning(sprintf('%s.%s.%s: required field is empty after generation (unsupported field, unavailable reference, or depth limit).', $entity->getEntityTypeId(), $entity->bundle(), $name));
+      }
+    }
   }
 
 }

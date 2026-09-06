@@ -112,6 +112,10 @@ final class SeederManager {
       'dry_run' => $dryRun,
     ];
 
+    $warnings = [];
+    $onWarning = static function (string $message) use (&$warnings): void {
+      $warnings[$message] = $message;
+    };
     $runStore['status'] = 'running';
     $checkpoint = function (string $entityType, int $id) use (&$runStore, $runId): void {
       $runStore['created'][$entityType][] = $id;
@@ -124,7 +128,7 @@ final class SeederManager {
 
     try {
       for ($i = 0; $i < $count; $i++) {
-        $created = $this->entityTreeBuilder->buildNodeTree($bundle, $profile, $depth, $faker, $dryRun, $checkpoint);
+        $created = $this->entityTreeBuilder->buildNodeTree($bundle, $profile, $depth, $faker, $dryRun, $checkpoint, $onWarning);
         foreach ($created as $entityType => $ids) {
           $stats[$entityType] += count($ids);
         }
@@ -134,6 +138,7 @@ final class SeederManager {
       if (!$dryRun) {
         $runStore['status'] = 'failed';
         $runStore['error'] = $exception->getMessage();
+        $runStore['warnings'] = array_values($warnings);
         $this->state->set('drupal_mock_data_seeder.runs.' . $runId, $runStore);
       }
       throw new \RuntimeException(sprintf('Seed run %s failed: %s%s', $runId, $exception->getMessage(), $dryRun ? '' : ' Clean up with drush mock:reset --run-id=' . $runId), 0, $exception);
@@ -143,6 +148,7 @@ final class SeederManager {
     $runStore['finished_at'] = date(DATE_ATOM);
     $durationMs = (int) round((microtime(TRUE) - $startedAtMicrotime) * 1000);
     $runStore['stats'] = $stats;
+    $runStore['warnings'] = array_values($warnings);
     $runStore['duration_ms'] = $durationMs;
 
     if (!$dryRun) {
@@ -175,6 +181,7 @@ final class SeederManager {
       'dry_run' => $dryRun,
       'duration_ms' => $durationMs,
       'stats' => $stats,
+      'warnings' => array_values($warnings),
     ];
   }
 

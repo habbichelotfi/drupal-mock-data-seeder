@@ -117,6 +117,47 @@ statistics:
 drush mock:seed --profile=default --count=10 --json=1
 ```
 
+### Paragraph field configuration and warnings
+
+All empty writable Paragraph reference fields are populated, including multiple
+fields on the same node. Generation uses installed Paragraph types permitted by
+each field's `target_bundles` and `negate` settings, and respects field cardinality.
+An absent or `null` target list allows all installed types; an empty list allows
+none (or all when negated). Custom selection plugins may impose additional rules
+that this configuration-based selection does not evaluate.
+
+The profile's `paragraph_types` list further restricts those types. An empty or
+omitted profile list enables automatic discovery; new installations use an empty
+list by default. Existing installations keep their configured list. To use
+automatic discovery on an existing site, set this in its active seeder config:
+
+```yaml
+profiles:
+  default:
+    paragraph_types: []
+```
+
+This fragment shows only the setting to change; preserve the rest of the config.
+An explicit list with no allowed match produces a warning and skips the field.
+Root fields use `paragraphs_per_node`, capped by their cardinality. Required fields
+receive at least one item when possible. Nested fields receive one child when
+required; optional nested fields have a 35% chance of receiving one. `--depth`
+always limits nesting, including required fields and self-referencing types.
+
+The run report includes a deduplicated `warnings` array, also displayed in Drush.
+It identifies empty required configurable fields by entity type, bundle and field
+name, including fields left empty at the depth limit. Check a simulation with:
+
+```bash
+drush mock:seed --count=5 --depth=3 --dry-run=1 --json=1
+```
+
+These warnings are advisory, not complete Drupal entity validation, and do not
+prevent a real run. A dry run saves neither entities nor run metadata; its entity
+statistics remain zero. Because dry runs do not create missing taxonomy or media,
+required references to those entities may be reported empty even when a real run
+could create them.
+
 ## Diagnostics
 
 Check configuration and runtime prerequisites without creating entities:
