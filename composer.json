@@ -3,7 +3,7 @@
   "description": "Drupal development module to generate realistic nested content trees for testing.",
   "type": "drupal-module",
   "license": "MIT",
-  "homepage": "https://github.com/lhabbich/drupal-mock-data-seeder",
+  "homepage": "https://github.com/habbichelotfi/drupal-mock-data-seeder",
   "keywords": [
     "drupal",
     "drupal-module",
