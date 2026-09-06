@@ -23,7 +23,7 @@ final class EntityTreeBuilder {
   /**
    * Builds one node tree and returns entity IDs grouped by entity type.
    */
-  public function buildNodeTree(string $bundle, array $profile, int $depth, Generator $faker, bool $dryRun = FALSE): array {
+  public function buildNodeTree(string $bundle, array $profile, int $depth, Generator $faker, bool $dryRun = FALSE, ?callable $onCreated = NULL): array {
     $created = [
       'node' => [],
       'paragraph' => [],
@@ -48,13 +48,18 @@ final class EntityTreeBuilder {
       ]);
     }
 
-    $this->attachTaxonomyReferences($node, $profile, $faker, $created, $dryRun);
-    $this->attachMediaReferences($node, $profile, $faker, $created, $dryRun);
-    $this->attachParagraphs($node, $profile, $depth, $faker, $created, $dryRun);
+    $this->fieldValueGenerator->populateFields($node, $faker);
+
+    $this->attachTaxonomyReferences($node, $profile, $faker, $created, $dryRun, $onCreated);
+    $this->attachMediaReferences($node, $profile, $faker, $created, $dryRun, $onCreated);
+    $this->attachParagraphs($node, $profile, $depth, $faker, $created, $dryRun, $onCreated);
 
     if (!$dryRun) {
       $node->save();
       $created['node'][] = (int) $node->id();
+      if ($onCreated !== NULL) {
+        $onCreated('node', (int) $node->id());
+      }
     }
 
     return $created;
@@ -63,7 +68,7 @@ final class EntityTreeBuilder {
   /**
    * Attaches taxonomy references on reference fields targeting taxonomy terms.
    */
-  private function attachTaxonomyReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachTaxonomyReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): void {
     if (!$this->entityTypeManager->hasDefinition('taxonomy_term')) {
       return;
     }
@@ -80,7 +85,7 @@ final class EntityTreeBuilder {
 
     foreach ($fields as $fieldName => $definition) {
       $vocabulary = $this->resolveVocabulary($definition, (string) ($taxonomyProfile['vocabulary'] ?? 'tags'));
-      $termIds = $this->ensureTaxonomyTerms($vocabulary, $count, !empty($taxonomyProfile['create_if_missing']), $faker, $created, $dryRun);
+      $termIds = $this->ensureTaxonomyTerms($vocabulary, $count, !empty($taxonomyProfile['create_if_missing']), $faker, $created, $dryRun, $onCreated);
       if ($termIds === []) {
         continue;
       }
@@ -96,7 +101,7 @@ final class EntityTreeBuilder {
   /**
    * Attaches media references on reference fields targeting media entities.
    */
-  private function attachMediaReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachMediaReferences(ContentEntityInterface $node, array $profile, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): void {
     if (!$this->entityTypeManager->hasDefinition('media')) {
       return;
     }
@@ -111,7 +116,7 @@ final class EntityTreeBuilder {
     $max = (int) ($mediaProfile['max'] ?? 2);
     $count = mt_rand(max(1, $min), max($min, $max));
 
-    $mediaIds = $this->ensureMediaIds($count, !empty($mediaProfile['create_if_missing']), (string) ($mediaProfile['bundle'] ?? ''), $faker, $created, $dryRun);
+    $mediaIds = $this->ensureMediaIds($count, !empty($mediaProfile['create_if_missing']), (string) ($mediaProfile['bundle'] ?? ''), $faker, $created, $dryRun, $onCreated);
     if ($mediaIds === []) {
       return;
     }
@@ -128,7 +133,7 @@ final class EntityTreeBuilder {
   /**
    * Loads or creates taxonomy terms to satisfy minimum reference count.
    */
-  private function ensureTaxonomyTerms(string $vocabulary, int $minimumCount, bool $createIfMissing, Generator $faker, array &$created, bool $dryRun): array {
+  private function ensureTaxonomyTerms(string $vocabulary, int $minimumCount, bool $createIfMissing, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): array {
     $termStorage = $this->entityTypeManager->getStorage('taxonomy_term');
     $existing = $termStorage->loadByProperties(['vid' => $vocabulary]);
     $termIds = array_map(static fn($term) => (int) $term->id(), $existing);
@@ -142,6 +147,9 @@ final class EntityTreeBuilder {
         $term->save();
         $termIds[] = (int) $term->id();
         $created['taxonomy_term'][] = (int) $term->id();
+        if ($onCreated !== NULL) {
+          $onCreated('taxonomy_term', (int) $term->id());
+        }
       }
     }
 
@@ -151,7 +159,7 @@ final class EntityTreeBuilder {
   /**
    * Loads or creates media entities to satisfy minimum reference count.
    */
-  private function ensureMediaIds(int $minimumCount, bool $createIfMissing, string $preferredBundle, Generator $faker, array &$created, bool $dryRun): array {
+  private function ensureMediaIds(int $minimumCount, bool $createIfMissing, string $preferredBundle, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): array {
     $mediaStorage = $this->entityTypeManager->getStorage('media');
     $conditions = $preferredBundle !== '' ? ['bundle' => $preferredBundle] : [];
     $existing = $mediaStorage->loadByProperties($conditions);
@@ -162,6 +170,9 @@ final class EntityTreeBuilder {
         $media = $this->createRemoteVideoMedia($preferredBundle, $faker);
         if ($media === NULL) {
           break;
+        }
+        if ($onCreated !== NULL) {
+          $onCreated('media', (int) $media->id());
         }
         $mediaIds[] = (int) $media->id();
         $created['media'][] = (int) $media->id();
@@ -280,7 +291,7 @@ final class EntityTreeBuilder {
   /**
    * Builds and attaches top-level paragraphs on the node.
    */
-  private function attachParagraphs(ContentEntityInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): void {
+  private function attachParagraphs(ContentEntityInterface $node, array $profile, int $depth, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): void {
     if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
       return;
     }
@@ -295,7 +306,7 @@ final class EntityTreeBuilder {
 
     $paragraphs = [];
     for ($i = 0; $i < $paragraphCount; $i++) {
-      $paragraph = $this->createParagraphRecursive($profile, $depth, $faker, $created, $dryRun);
+      $paragraph = $this->createParagraphRecursive($profile, $depth, $faker, $created, $dryRun, $onCreated);
       if ($paragraph !== NULL) {
         $paragraphs[] = ['entity' => $paragraph];
       }
@@ -309,7 +320,7 @@ final class EntityTreeBuilder {
   /**
    * Recursively creates one paragraph and optional nested child content.
    */
-  private function createParagraphRecursive(array $profile, int $depth, Generator $faker, array &$created, bool $dryRun): ?object {
+  private function createParagraphRecursive(array $profile, int $depth, Generator $faker, array &$created, bool $dryRun, ?callable $onCreated): ?object {
     if ($depth < 1 || !class_exists('Drupal\\paragraphs\\Entity\\Paragraph')) {
       return NULL;
     }
@@ -329,9 +340,11 @@ final class EntityTreeBuilder {
       ]);
     }
 
+    $this->fieldValueGenerator->populateFields($paragraph, $faker);
+
     $nestedField = $this->findParagraphField($paragraph);
     if ($nestedField !== NULL && $depth > 1 && mt_rand(0, 100) < 35) {
-      $child = $this->createParagraphRecursive($profile, $depth - 1, $faker, $created, $dryRun);
+      $child = $this->createParagraphRecursive($profile, $depth - 1, $faker, $created, $dryRun, $onCreated);
       if ($child !== NULL) {
         $paragraph->set($nestedField, [['entity' => $child]]);
       }
@@ -340,6 +353,9 @@ final class EntityTreeBuilder {
     if (!$dryRun) {
       $paragraph->save();
       $created['paragraph'][] = (int) $paragraph->id();
+      if ($onCreated !== NULL) {
+        $onCreated('paragraph', (int) $paragraph->id());
+      }
     }
 
     return $paragraph;

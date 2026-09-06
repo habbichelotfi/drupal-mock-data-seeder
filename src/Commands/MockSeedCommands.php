@@ -19,6 +19,31 @@ final class MockSeedCommands extends DrushCommands {
   }
 
   /**
+   * Choose a content type and enable generation for an existing profile.
+   *
+   * @command mock:setup
+   * @option profile Existing profile to configure.
+   * @option bundle Node bundle machine name; prompts when omitted.
+   * @option create-bundle Use 1 to create a missing node type (without fields).
+   * @usage drush mock:setup --bundle=article --create-bundle=1
+   */
+  public function setup(array $options = ['profile' => 'default', 'bundle' => NULL, 'create-bundle' => '0']): void {
+    $bundle = $options['bundle'];
+    if (!$bundle) {
+      $bundles = $this->seederManager->availableBundles();
+      if ($bundles === []) {
+        throw new \RuntimeException('No content types exist. Create one in /admin/structure/types/add or run drush mock:setup --bundle=article --create-bundle=1.');
+      }
+      if (!$this->input()->isInteractive()) {
+        throw new \InvalidArgumentException('Non-interactive setup requires --bundle. Available bundles: ' . implode(', ', array_keys($bundles)));
+      }
+      $bundle = $this->io()->choice('Choose the content type to generate', array_combine(array_keys($bundles), array_keys($bundles)));
+    }
+    $result = $this->seederManager->setup((string) $options['profile'], (string) $bundle, ((string) $options['create-bundle']) === '1');
+    $this->io()->success(sprintf('Seeder enabled. Profile %s now targets %s. Run mock:doctor, then mock:seed --dry-run=1 with this profile.', $result['profile'], $result['bundle']));
+  }
+
+  /**
    * Generate mock content tree(s) from a profile.
    *
    * @command mock:seed

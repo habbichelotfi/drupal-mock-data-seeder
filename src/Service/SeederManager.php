@@ -24,6 +24,39 @@ final class SeederManager {
   ) {}
 
   /**
+   * Lists node bundles for the setup assistant.
+   */
+  public function availableBundles(): array {
+    $bundles = [];
+    foreach ($this->entityTypeManager->getStorage('node_type')->loadMultiple() as $id => $type) {
+      $bundles[$id] = (string) $type->label();
+    }
+    asort($bundles);
+    return $bundles;
+  }
+
+  /**
+   * Configures an existing profile and explicitly enables generation.
+   */
+  public function setup(string $profileName, string $bundle, bool $createBundle = FALSE): array {
+    $this->assertEnvironmentIsAllowed(FALSE);
+    $config = $this->configFactory->getEditable('drupal_mock_data_seeder.settings');
+    if (!(array) $config->get('profiles.' . $profileName)) {
+      throw new \InvalidArgumentException(sprintf('Unknown profile "%s".', $profileName));
+    }
+    $storage = $this->entityTypeManager->getStorage('node_type');
+    if ($storage->load($bundle) === NULL && $createBundle) {
+      if (!preg_match('/^[a-z][a-z0-9_]{0,31}$/', $bundle)) {
+        throw new \InvalidArgumentException('Bundle must be a machine name of at most 32 characters, starting with a letter.');
+      }
+      $storage->create(['type' => $bundle, 'name' => ucfirst(str_replace('_', ' ', $bundle))])->save();
+    }
+    $this->assertBundleExists($bundle);
+    $config->set('profiles.' . $profileName . '.bundle', $bundle)->set('enabled', TRUE)->save();
+    return ['profile' => $profileName, 'bundle' => $bundle, 'enabled' => TRUE];
+  }
+
+  /**
    * Runs one seed operation using profile config and runtime overrides.
    */
   public function seed(string $profileName, array $overrides = []): array {
@@ -79,16 +112,34 @@ final class SeederManager {
       'dry_run' => $dryRun,
     ];
 
-    for ($i = 0; $i < $count; $i++) {
-      $created = $this->entityTreeBuilder->buildNodeTree($bundle, $profile, $depth, $faker, $dryRun);
-      foreach ($created as $entityType => $ids) {
-        $stats[$entityType] += count($ids);
-        if (!$dryRun) {
-          $runStore['created'][$entityType] = array_values(array_unique(array_merge($runStore['created'][$entityType], $ids)));
+    $runStore['status'] = 'running';
+    $checkpoint = function (string $entityType, int $id) use (&$runStore, $runId): void {
+      $runStore['created'][$entityType][] = $id;
+      $this->state->set('drupal_mock_data_seeder.runs.' . $runId, $runStore);
+    };
+    if (!$dryRun) {
+      $this->state->set('drupal_mock_data_seeder.runs.' . $runId, $runStore);
+      $this->state->set('drupal_mock_data_seeder.last_run_id', $runId);
+    }
+
+    try {
+      for ($i = 0; $i < $count; $i++) {
+        $created = $this->entityTreeBuilder->buildNodeTree($bundle, $profile, $depth, $faker, $dryRun, $checkpoint);
+        foreach ($created as $entityType => $ids) {
+          $stats[$entityType] += count($ids);
         }
       }
     }
+    catch (\Throwable $exception) {
+      if (!$dryRun) {
+        $runStore['status'] = 'failed';
+        $runStore['error'] = $exception->getMessage();
+        $this->state->set('drupal_mock_data_seeder.runs.' . $runId, $runStore);
+      }
+      throw new \RuntimeException(sprintf('Seed run %s failed: %s%s', $runId, $exception->getMessage(), $dryRun ? '' : ' Clean up with drush mock:reset --run-id=' . $runId), 0, $exception);
+    }
 
+    $runStore['status'] = 'completed';
     $runStore['finished_at'] = date(DATE_ATOM);
     $durationMs = (int) round((microtime(TRUE) - $startedAtMicrotime) * 1000);
     $runStore['stats'] = $stats;
@@ -140,7 +191,7 @@ final class SeederManager {
       'ok' => $enabled,
       'message' => $enabled
         ? 'Seeder is enabled.'
-        : 'Seeder is disabled. Set drupal_mock_data_seeder.settings:enabled to true.',
+        : 'Seeder is disabled. Run drush mock:setup to choose a bundle and enable generation.',
     ];
 
     $profile = (array) ($config->get('profiles.' . $profileName) ?? []);
@@ -229,6 +280,9 @@ final class SeederManager {
     }
 
     $this->state->delete('drupal_mock_data_seeder.runs.' . $runId);
+    if ($this->state->get('drupal_mock_data_seeder.last_run_id') === $runId) {
+      $this->state->delete('drupal_mock_data_seeder.last_run_id');
+    }
 
     return [
       'run_id' => $runId,
@@ -333,7 +387,7 @@ final class SeederManager {
     $availableText = $available === [] ? '(none)' : implode(', ', $available);
     return [
       'ok' => FALSE,
-      'message' => sprintf('Unknown node bundle "%s". Available bundles: %s.', $bundle, $availableText),
+      'message' => sprintf('Unknown node bundle "%s". Available bundles: %s. Run drush mock:setup --bundle=TYPE%s.', $bundle, $availableText, $available === [] ? ' --create-bundle=1' : ''),
     ];
   }
 

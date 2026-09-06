@@ -40,6 +40,29 @@ environment. The module's default configuration is in
 
 ## Quick start
 
+Configure an existing content type and enable seeding with the setup assistant:
+
+```bash
+drush mock:setup
+```
+
+It prompts for an existing type. For scripts, supply the machine name explicitly:
+
+```bash
+drush mock:setup --profile=default --bundle=page
+```
+
+On an empty site, explicitly request creation of a minimal content type:
+
+```bash
+drush mock:setup --bundle=article --create-bundle=1
+```
+
+This creates the content type without adding custom fields or a body field.
+Add those through Drupal's field administration as needed. Setup updates only
+the selected existing profile's bundle and enables the seeder. It respects the
+environment block list and does not generate content.
+
 Run a dry-run first. It validates the profile and bundle without saving
 entities:
 
@@ -68,6 +91,21 @@ drush mock:seed --profile=default --count=20 --seed=4242
 ```
 
 The seed is included in the run result and stored run metadata.
+
+### Custom fields
+
+Empty configurable fields on nodes and Paragraphs are now filled for these types:
+`string`, `string_long`, `email`, `telephone`, `boolean`, `integer`, `decimal`,
+`float`, `link`, `datetime`, `timestamp`, `list_string`, `list_integer`, and
+`list_float`. One item is generated per field. String length, numeric bounds,
+decimal precision, static allowed values, date storage format, and internal-only
+links are taken into account. Existing values and base, computed, and read-only
+fields are preserved.
+
+Dynamic allowed-value callbacks and unsupported field types are skipped. The
+existing specialized logic still handles body text, Paragraph title/text fields,
+taxonomy and media references. Arbitrary formatted-text fields, images, files,
+and custom module constraints are not automatically handled by this generator.
 
 ### JSON reports
 
@@ -110,6 +148,18 @@ run with its reported ID:
 drush mock:reset --run-id=20260901_102030_abcd1234
 ```
 
+The run is recorded before generation and its entity IDs are saved after each
+successful entity save, including related entities created before their parent.
+If generation throws an error, the run is marked `failed` and the error includes
+the exact reset command. Cleanup is explicit: run that command to delete the
+recorded entities. Reused entities are not recorded or deleted.
+
+A process interruption leaves the recorded run available for reset. This is a
+recovery journal, not an atomic transaction: a hard stop between an entity save
+and its journal update, or a failure inside an entity save hook, may leave an
+unrecorded entity. Successful reset also clears the last-run pointer when it
+points to the deleted run.
+
 If the configured safeguard requires a run ID, omitting it fails safely. To
 roll back the last stored run explicitly:
 
@@ -150,6 +200,12 @@ composer test:smoke
 composer lint
 composer analyze
 composer test
+```
+
+The service tests can run without a bootstrapped Drupal site:
+
+```bash
+vendor/bin/phpunit tests/src/Unit
 ```
 
 The GitHub Actions workflow runs the smoke test, Drupal coding standards, and
